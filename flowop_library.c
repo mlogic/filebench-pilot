@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <dirent.h>
+#include <malloc.h>
 
 #ifndef HAVE_SYSV_SEM
 #include <semaphore.h>
@@ -426,9 +427,9 @@ flowoplib_iobufsetup(threadflow_t *threadflow, flowop_t *flowop,
 		return (FILEBENCH_ERROR);
 	}
 
-	/* If directio, we need to align buffer address by sector */
+	/* If directio, we need to align buffer address by page (required for Lustre Direct I/O write) */
 	if (flowoplib_fileattrs(flowop) & FLOW_ATTR_DIRECTIO)
-		iosize = iosize + 512;
+		iosize = iosize + 4096;
 
 	if ((memsize = threadflow->tf_constmemsize) != 0) {
 		/* use tf_mem for I/O with random offset */
@@ -458,7 +459,7 @@ flowoplib_iobufsetup(threadflow_t *threadflow, flowop_t *flowop,
 		 * memory is needed for the buffer.
 		 */
 		if ((flowop->fo_buf == NULL) && ((flowop->fo_buf
-		    = (char *)malloc(iosize)) == NULL))
+		    = (char *)memalign(4096, iosize)) == NULL))
 			return (FILEBENCH_ERROR);
 
 		flowop->fo_buf_size = iosize;
@@ -466,7 +467,7 @@ flowoplib_iobufsetup(threadflow_t *threadflow, flowop_t *flowop,
 	}
 
 	if (flowoplib_fileattrs(flowop) & FLOW_ATTR_DIRECTIO)
-		*iobufp = (caddr_t)((((unsigned long)(*iobufp) + 512) / 512) * 512);
+		*iobufp = (caddr_t)((((unsigned long)(*iobufp) + 4096) / 4096) * 4096);
 
 	return (FILEBENCH_OK);
 }
